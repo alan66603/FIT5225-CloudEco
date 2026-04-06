@@ -107,6 +107,9 @@ async def annotate(request: InferenceRequest):
 
     return {"uuid": request.uuid, "image": annotated_b64}
 
+@app.get("/")
+def main():
+    return {"status": "Welcome!"}
 
 @app.get("/health")
 def health():
