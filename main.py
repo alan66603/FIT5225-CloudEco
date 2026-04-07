@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from ultralytics import YOLO
 
+# Pytorch Model
 MODEL_PATH = "wildfire-detection/fire-models/fire_m.pt"
 model: YOLO = None
 executor = ThreadPoolExecutor()
@@ -16,29 +17,30 @@ executor = ThreadPoolExecutor()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Load model when FastAPI is activated
     global model
-    model = YOLO(MODEL_PATH)
-    yield
-    executor.shutdown(wait=False)
+    model = YOLO(MODEL_PATH)   # Only load once initially, requests afterwards use the same model
+    yield  # Handle all the requests here
+    executor.shutdown(wait=False)  # No waiting for the threads end, avoid stucking
 
 
 app = FastAPI(title="CloudEco Wildfire Detection", lifespan=lifespan)
 
-
+# BaseModel: automatically parse the incoming data type base on the defined type hints
 class InferenceRequest(BaseModel):
     uuid: str
     image: str  # base64-encoded image
 
-
+# decode Base64 format image to binary
 def _decode_image(image_b64: str) -> np.ndarray:
-    image_bytes = base64.b64decode(image_b64)
-    np_arr = np.frombuffer(image_bytes, dtype=np.uint8)
-    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    image_bytes = base64.b64decode(image_b64)  # convert binary to Base64 format
+    np_arr = np.frombuffer(image_bytes, dtype=np.uint8)  # 1D matrix
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)  # render
     if img is None:
         raise ValueError("Failed to decode image")
     return img
 
-
+# predict the image
 def _run_predict(image_b64: str) -> dict:
     img = _decode_image(image_b64)
     results = model.predict(img, device="cpu", verbose=False)
@@ -49,10 +51,10 @@ def _run_predict(image_b64: str) -> dict:
     box_list = []
 
     for i in range(len(boxes)):
-        cls_id = int(boxes.cls[i])
-        label = model.names[cls_id]
-        x1, y1, x2, y2 = boxes.xyxy[i].tolist()
-        prob = float(boxes.conf[i])
+        cls_id = int(boxes.cls[i])  # {0: "fire", 1: "smoke"}
+        label = model.names[cls_id]  
+        x1, y1, x2, y2 = boxes.xyxy[i].tolist()  # xyxy
+        prob = float(boxes.conf[i])  # conf
         detections.append(label)
         box_list.append({
             "x": x1,
@@ -79,12 +81,14 @@ def _run_annotate(image_b64: str) -> str:
     results = model.predict(img, device="cpu", verbose=False)
     annotated = results[0].plot()  # BGR numpy array
     _, buffer = cv2.imencode(".jpg", annotated)
+    # convert .jpg file into Base64 for transmitting
     return base64.b64encode(buffer).decode("utf-8")
 
 
 @app.post("/api/predict")
 async def predict(request: InferenceRequest):
     try:
+        # obtain the current event loop instance for the current thread
         loop = asyncio.get_event_loop()
         payload = await loop.run_in_executor(executor, _run_predict, request.image)
     except ValueError as e:
@@ -109,7 +113,7 @@ async def annotate(request: InferenceRequest):
 
 @app.get("/")
 def main():
-    return {"status": "Welcome!"}
+    return {"Welcome!"}
 
 @app.get("/health")
 def health():
