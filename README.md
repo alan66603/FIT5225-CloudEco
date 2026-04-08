@@ -1,6 +1,10 @@
 # FIT5225-CloudEco
 An Environmental Machine Learning-Based Cloud Application in Container Orchestration
 
+### FastAPI (localhost)
+```
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8001
+```
 
 ### Image Data Transformation Pipeline
 
