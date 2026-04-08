@@ -6,6 +6,12 @@ An Environmental Machine Learning-Based Cloud Application in Container Orchestra
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8001
 ```
 
+### Docker build container
+```
+docker build -t cloudeco:latest .
+docker run -p 8001:8000 cloudeco:latest
+```
+
 ### Image Data Transformation Pipeline
 
 When you process an image from a web request to a computer vision model, the data undergoes several transformations. This table explains each stage, the data type involved, and a conceptual example of what that data looks like.

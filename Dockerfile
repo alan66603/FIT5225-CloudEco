@@ -27,6 +27,13 @@ RUN pip install --no-cache-dir \
 # This discards all build-time tooling and keeps the final image small.
 FROM python:3.12-slim AS runtime
 
+# Install system libraries required by opencv, then clean up apt cache
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libxcb1 \
+        libgl1 \
+        libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create a non-root user for security compliance
 RUN useradd --create-home --shell /bin/bash appuser
 
