@@ -22,3 +22,28 @@ RUN pip install --no-cache-dir \
         --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
+# ── Stage 2: runtime ──────────────────────────────────────────────────────────
+# Start from the same slim base; copy only the finished venv and app files.
+# This discards all build-time tooling and keeps the final image small.
+FROM python:3.12-slim AS runtime
+
+# Create a non-root user for security compliance
+RUN useradd --create-home --shell /bin/bash appuser
+
+WORKDIR /app
+
+# Copy the pre-built virtual environment from the builder stage
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy application source code and model weights
+COPY main.py .
+COPY wildfire-detection/fire-models/fire_m.pt wildfire-detection/fire-models/fire_m.pt
+
+# Switch to non-root user
+USER appuser
+
+# docker run -p xxxx:8000 myimage
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
