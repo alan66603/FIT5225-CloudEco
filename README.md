@@ -12,6 +12,15 @@ docker build -t cloudeco:latest .
 docker run -p 8001:8000 cloudeco:latest
 ```
 
+### IaC cheat sheet
+```
+# delete all resource
+terraform destroy
+
+# stop only the VM, leave firewall policy, vpc, ssh k8s, network settings on
+gcloud compute instances stop
+```
+
 ### Image Data Transformation Pipeline
 
 When you process an image from a web request to a computer vision model, the data undergoes several transformations. This table explains each stage, the data type involved, and a conceptual example of what that data looks like.
