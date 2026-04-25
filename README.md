@@ -19,6 +19,9 @@ terraform destroy
 
 # stop only the VM, leave firewall policy, vpc, ssh k8s, network settings on
 gcloud compute instances stop
+
+# restart VM
+gcloud compute instances start k8s-master k8s-worker-1 k8s-worker-2 --zone=australia-southeast1-a
 ```
 
 ### Image Data Transformation Pipeline

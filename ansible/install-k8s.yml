@@ -1,0 +1,113 @@
+---
+# ── Phase 1: All nodes — install Docker, cri-dockerd, and K8s tools ────────────
+- name: Setup all nodes
+  hosts: all
+  become: true
+  tasks:
+
+    - name: Disable swap (K8s requirement)
+      shell: swapoff -a && sed -i '/swap/s/^/#/' /etc/fstab
+
+    - name: Install Docker
+      shell: |
+        apt-get update -q
+        apt-get install -y apt-transport-https ca-certificates curl gnupg software-properties-common lsb-release
+        mkdir -m 0755 -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        chmod a+r /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu jammy stable" > /etc/apt/sources.list.d/docker.list
+        apt-get update -q
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        usermod -aG docker ubuntu
+      args:
+        creates: /usr/bin/docker
+
+    - name: Install cri-dockerd adapter
+      shell: |
+        wget -q https://github.com/Mirantis/cri-dockerd/releases/download/v0.3.16/cri-dockerd_0.3.16.3-0.ubuntu-jammy_amd64.deb
+        dpkg -i cri-dockerd_0.3.16.3-0.ubuntu-jammy_amd64.deb
+        rm cri-dockerd_0.3.16.3-0.ubuntu-jammy_amd64.deb
+      args:
+        creates: /usr/bin/cri-dockerd
+
+    - name: Install kubeadm, kubelet, kubectl (v1.32)
+      shell: |
+        apt-get update -q && apt-get install -y apt-transport-https ca-certificates curl
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+        apt-get update -q && apt-get install -y kubelet kubeadm kubectl
+        apt-mark hold kubelet kubeadm kubectl
+      args:
+        creates: /usr/bin/kubeadm
+
+    - name: Load kernel modules for K8s networking
+      shell: |
+        modprobe br_netfilter
+        sysctl -w net.bridge.bridge-nf-call-iptables=1
+        echo "net.bridge.bridge-nf-call-iptables=1" | tee -a /etc/sysctl.conf
+        sysctl -p
+
+
+# ── Phase 2: Master node — initialise cluster ──────────────────────────────────
+- name: Initialise master node
+  hosts: master
+  become: true
+  tasks:
+
+    - name: Run kubeadm init
+      command: >
+        kubeadm init
+        --pod-network-cidr=10.244.0.0/16
+        --cri-socket=unix:///var/run/cri-dockerd.sock
+        --apiserver-advertise-address={{ ansible_default_ipv4.address }}
+      args:
+        creates: /etc/kubernetes/admin.conf
+
+    - name: Setup kubectl for ubuntu user
+      shell: |
+        mkdir -p /home/ubuntu/.kube
+        cp /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
+        chown ubuntu:ubuntu /home/ubuntu/.kube/config
+
+    - name: Setup kubectl for all users in /home
+      shell: |
+        for user in $(ls /home); do
+          mkdir -p /home/$user/.kube
+          cp /etc/kubernetes/admin.conf /home/$user/.kube/config
+          chown -R $user:$user /home/$user/.kube
+        done
+
+    - name: Install Weave CNI
+      become_user: ubuntu
+      command: kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+
+    - name: Get join command and save locally
+      shell: kubeadm token create --print-join-command
+      register: join_command
+
+    - name: Save join command to local machine
+      become: false
+      local_action:
+        module: copy
+        content: "{{ join_command.stdout }} --cri-socket=unix:///var/run/cri-dockerd.sock"
+        dest: /tmp/k8s_join_command.sh
+
+
+# ── Phase 3: Worker nodes — join the cluster ───────────────────────────────────
+- name: Join worker nodes
+  hosts: workers
+  become: true
+  tasks:
+
+    - name: Copy join command to worker
+      copy:
+        src: /tmp/k8s_join_command.sh
+        dest: /tmp/k8s_join_command.sh
+        mode: '0755'
+
+    - name: Join cluster
+      shell: bash /tmp/k8s_join_command.sh
+      args:
+        creates: /etc/kubernetes/kubelet.conf
