@@ -19,7 +19,7 @@ variable "zone" {
 variable "machine_type" {
   description = "VM machine type (4 vCPU, 8 GB RAM)"
   type        = string
-  default     = "e2-custom-4-8192"
+  default     = "n2-custom-4-8192"
 }
 
 variable "disk_size_master_gb" {

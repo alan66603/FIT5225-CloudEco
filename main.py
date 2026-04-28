@@ -1,5 +1,6 @@
 import base64
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 
@@ -9,8 +10,13 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from ultralytics import YOLO
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Pytorch Model
-MODEL_PATH = "wildfire-detection/fire-models/fire_m.pt"
+# MODEL_PATH = "wildfire-detection/fire-models/fire_n.pt"
+# MODEL_PATH = "wildfire-detection/fire-models/fire_m.pt"
+MODEL_PATH = "wildfire-detection/fire-models/fire_n.onnx"
 model: YOLO = None
 executor = ThreadPoolExecutor()
 
@@ -19,7 +25,7 @@ executor = ThreadPoolExecutor()
 async def lifespan(app: FastAPI):
     # Load model when FastAPI is activated
     global model
-    model = YOLO(MODEL_PATH)   # Only load once initially, requests afterwards use the same model
+    model = YOLO(MODEL_PATH, task="detect")
     yield  # Handle all the requests here
     executor.shutdown(wait=False)  # No waiting for the threads end, avoid stucking
 
@@ -50,9 +56,11 @@ def _run_predict(image_b64: str) -> dict:
     detections = []
     box_list = []
 
+    names = model.names
+
     for i in range(len(boxes)):
         cls_id = int(boxes.cls[i])  # {0: "fire", 1: "smoke"}
-        label = model.names[cls_id]  
+        label = model.names[cls_id]
         x1, y1, x2, y2 = boxes.xyxy[i].tolist()  # xyxy
         prob = float(boxes.conf[i])  # conf
         detections.append(label)
@@ -64,7 +72,7 @@ def _run_predict(image_b64: str) -> dict:
             "probability": prob,
         })
 
-    speed = result.speed  # {"preprocess": ms, "inference": ms, "postprocess": ms}
+    speed = result.speed
 
     return {
         "count": len(detections),
@@ -89,11 +97,12 @@ def _run_annotate(image_b64: str) -> str:
 async def predict(request: InferenceRequest):
     try:
         # obtain the current event loop instance for the current thread
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         payload = await loop.run_in_executor(executor, _run_predict, request.image)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.exception("predict failed")
         raise HTTPException(status_code=500, detail=str(e))
 
     return {"uuid": request.uuid, **payload}
@@ -102,11 +111,12 @@ async def predict(request: InferenceRequest):
 @app.post("/api/annotate")
 async def annotate(request: InferenceRequest):
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         annotated_b64 = await loop.run_in_executor(executor, _run_annotate, request.image)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.exception("annotate failed")
         raise HTTPException(status_code=500, detail=str(e))
 
     return {"uuid": request.uuid, "image": annotated_b64}

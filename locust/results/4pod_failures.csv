@@ -1,0 +1,3 @@
+Method,Name,Error,Occurrences
+POST,/api/annotate,CatchResponseError('HTTP 0: '),65
+POST,/api/predict,CatchResponseError('HTTP 0: '),96

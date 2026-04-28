@@ -18,7 +18,7 @@ COPY requirements.txt .
 # --no-cache-dir: delete the cache of pip download in container
 # torch and torchvision should be installed here instead of by requirements.txt
 RUN pip install --no-cache-dir \
-        torch torchvision \
+        torch==2.5.1 torchvision==0.20.1 \
         --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
@@ -45,7 +45,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application source code and model weights
 COPY main.py .
-COPY wildfire-detection/fire-models/fire_m.pt wildfire-detection/fire-models/fire_m.pt
+# COPY wildfire-detection/fire-models/fire_n.pt wildfire-detection/fire-models/fire_n.pt
+COPY wildfire-detection/fire-models/fire_n.onnx wildfire-detection/fire-models/fire_n.onnx
 
 # Switch to non-root user
 USER appuser
