@@ -12,6 +12,9 @@ with open(IMAGE_PATH, "rb") as f:
 class WildfireUser(HttpUser):
     wait_time = between(0.5, 1.5)  # seconds between tasks per user
 
+    def on_start(self):
+        self.client.headers.update({"Connection": "close"})
+
     @task(2)
     def predict(self):
         payload = {

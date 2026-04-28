@@ -10,15 +10,13 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from ultralytics import YOLO
 
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Pytorch Model
-# MODEL_PATH = "wildfire-detection/fire-models/fire_n.pt"
-# MODEL_PATH = "wildfire-detection/fire-models/fire_m.pt"
 MODEL_PATH = "wildfire-detection/fire-models/fire_n.onnx"
 model: YOLO = None
-executor = ThreadPoolExecutor()
+executor = ThreadPoolExecutor(max_workers=1)
 
 
 @asynccontextmanager
@@ -27,7 +25,7 @@ async def lifespan(app: FastAPI):
     global model
     model = YOLO(MODEL_PATH, task="detect")
     yield  # Handle all the requests here
-    executor.shutdown(wait=False)  # No waiting for the threads end, avoid stucking
+    executor.shutdown(wait=True)  # Wait for in-flight inference to finish before exit
 
 
 app = FastAPI(title="CloudEco Wildfire Detection", lifespan=lifespan)
@@ -56,10 +54,8 @@ def _run_predict(image_b64: str) -> dict:
     detections = []
     box_list = []
 
-    names = model.names
-
     for i in range(len(boxes)):
-        cls_id = int(boxes.cls[i])  # {0: "fire", 1: "smoke"}
+        cls_id = int(boxes.cls[i])
         label = model.names[cls_id]
         x1, y1, x2, y2 = boxes.xyxy[i].tolist()  # xyxy
         prob = float(boxes.conf[i])  # conf

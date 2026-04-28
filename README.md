@@ -9,6 +9,7 @@ python3 -m uvicorn main:app --host 0.0.0.0 --port 8001
 ### Docker build container
 ```
 docker build --platform linux/amd64 -t cloudeco:latest .
+<!-- docker buildx build --platform linux/amd64 -t alan66603/cloudeco:latest --push . -->
 docker run -p 8001:8000 cloudeco:latest
 ```
 
@@ -26,7 +27,6 @@ gcloud compute instances start k8s-master k8s-worker-1 k8s-worker-2 --zone=austr
 
 # Ansible Kubernetes Installation
 ```
-cd /ansible
 ansible-playbook -i ansible/inventory.ini ansible/install-k8s.yml
 ```
 
