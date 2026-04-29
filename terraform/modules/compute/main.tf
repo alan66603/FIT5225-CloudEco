@@ -29,7 +29,7 @@ resource "google_compute_instance" "master" {
 resource "google_compute_instance" "workers" {
   count        = length(var.worker_names)
   name         = var.worker_names[count.index]
-  machine_type = var.machine_type
+  machine_type = var.worker_machine_type
   zone         = var.zone
   tags         = ["k8s-node"]
 

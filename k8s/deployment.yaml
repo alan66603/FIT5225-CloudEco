@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata: 
   name: cloudeco-deployment
-  namespace: default
+  namespace: cloudeco
 spec:
   replicas: 1
   selector:
@@ -21,7 +21,7 @@ spec:
         resources:
           requests:
             cpu: "0.5"
-            memory: "1Gi"
+            memory: "1.5Gi"
           limits:
             cpu: "1.0"
             memory: "2Gi"

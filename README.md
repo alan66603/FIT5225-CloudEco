@@ -32,10 +32,11 @@ ansible-playbook -i ansible/inventory.ini ansible/install-k8s.yml
 
 # Kubernetes deployment apply
 ```
+kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/deployment.yaml 
 kubectl apply -f k8s/service.yaml
 # get NodePort
-kubectl get svc
+kubectl get svc -n cloudeco
 python3 -m locust -f locustfile.py --host=<Master external IP>:<NodePort>
 ```
 

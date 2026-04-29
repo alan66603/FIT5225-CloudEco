@@ -17,7 +17,13 @@ variable "zone" {
 }
 
 variable "machine_type" {
-  description = "VM machine type (4 vCPU, 8 GB RAM)"
+  description = "Master VM machine type"
+  type        = string
+  default     = "n2-custom-4-8192"
+}
+
+variable "worker_machine_type" {
+  description = "Worker VM machine type"
   type        = string
   default     = "n2-custom-4-8192"
 }

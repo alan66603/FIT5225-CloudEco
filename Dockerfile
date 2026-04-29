@@ -45,8 +45,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application source code and model weights
 COPY main.py .
-# COPY wildfire-detection/fire-models/fire_n.pt wildfire-detection/fire-models/fire_n.pt
-COPY wildfire-detection/fire-models/fire_n.onnx wildfire-detection/fire-models/fire_n.onnx
+COPY wildfire-detection/fire-models/fire_m.pt wildfire-detection/fire-models/fire_m.pt
 
 # Switch to non-root user
 USER appuser

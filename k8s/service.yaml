@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: cloudeco-service
-  namespace: default
+  namespace: cloudeco
 spec:
   type: NodePort
   selector:

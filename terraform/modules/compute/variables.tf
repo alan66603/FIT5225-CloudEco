@@ -9,7 +9,12 @@ variable "worker_names" {
 }
 
 variable "machine_type" {
-  description = "VM machine type"
+  description = "Master VM machine type"
+  type        = string
+}
+
+variable "worker_machine_type" {
+  description = "Worker VM machine type"
   type        = string
 }
 

@@ -4,19 +4,21 @@ import logging
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 
+import torch
 import cv2
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from ultralytics import YOLO
 
+torch.set_num_threads(1)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MODEL_PATH = "wildfire-detection/fire-models/fire_n.onnx"
+MODEL_PATH = "wildfire-detection/fire-models/fire_m.pt"
 model: YOLO = None
-executor = ThreadPoolExecutor(max_workers=1)
+executor = ThreadPoolExecutor(max_workers=4)
 
 
 @asynccontextmanager
@@ -35,13 +37,18 @@ class InferenceRequest(BaseModel):
     uuid: str
     image: str  # base64-encoded image
 
-# decode Base64 format image to binary
+MAX_INFER_SIZE = 640
+
 def _decode_image(image_b64: str) -> np.ndarray:
-    image_bytes = base64.b64decode(image_b64)  # convert binary to Base64 format
-    np_arr = np.frombuffer(image_bytes, dtype=np.uint8)  # 1D matrix
-    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)  # render
+    image_bytes = base64.b64decode(image_b64)
+    np_arr = np.frombuffer(image_bytes, dtype=np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("Failed to decode image")
+    h, w = img.shape[:2]
+    if max(h, w) > MAX_INFER_SIZE:
+        scale = MAX_INFER_SIZE / max(h, w)
+        img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_LINEAR)
     return img
 
 # predict the image
@@ -83,9 +90,8 @@ def _run_predict(image_b64: str) -> dict:
 def _run_annotate(image_b64: str) -> str:
     img = _decode_image(image_b64)
     results = model.predict(img, device="cpu", verbose=False)
-    annotated = results[0].plot()  # BGR numpy array
-    _, buffer = cv2.imencode(".jpg", annotated)
-    # convert .jpg file into Base64 for transmitting
+    annotated = results[0].plot()
+    _, buffer = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
     return base64.b64encode(buffer).decode("utf-8")
 
 

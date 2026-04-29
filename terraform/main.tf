@@ -13,6 +13,7 @@ module "compute" {
   master_name         = var.master_name
   worker_names        = var.worker_names
   machine_type        = var.machine_type
+  worker_machine_type = var.worker_machine_type
   zone                = var.zone
   disk_size_master_gb = var.disk_size_master_gb
   disk_size_worker_gb = var.disk_size_worker_gb
