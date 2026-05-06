@@ -1,10 +1,4 @@
 ---
-# AI-generated (Claude, Anthropic): overall playbook structure, kubeadm init/join flow,
-# and three-phase organisation (all nodes / master / workers).
-# Modified: added APT repository setup for Docker (missing from generated output);
-# added cleanup of cri-dockerd .deb after install; fixed join command extraction
-# (stdout_lines[-1] only captured last line — replaced with grep); added usermod for docker group.
-
 # ── Phase 1: All nodes — install Docker, cri-dockerd, and K8s tools ────────────
 - name: Setup all nodes
   hosts: all

@@ -1,9 +1,3 @@
-# AI-generated (Claude, Anthropic): overall load test structure, task weights, wait_time,
-# and basic response validation pattern.
-# Modified: used os.path.join for path portability; added catch_response=True with body
-# validation; added timeout=30; added Connection: close header to prevent reuse issues
-# under high concurrency.
-
 import base64
 import uuid
 import os

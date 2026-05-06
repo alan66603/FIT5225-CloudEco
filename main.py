@@ -1,9 +1,3 @@
-# AI-generated (Claude, Anthropic): overall FastAPI async architecture, ThreadPoolExecutor
-# offloading pattern, lifespan context manager, endpoint structure, and inference helpers.
-# Modified: replaced @app.on_event("startup") with asynccontextmanager lifespan and added
-# executor.shutdown(); reduced max_workers 4→2; added torch.set_num_threads(1);
-# added image resizing, logging, try/except error handling, and /health endpoint.
-
 import base64
 import asyncio
 import logging
@@ -17,7 +11,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from ultralytics import YOLO
 
-# Limit PyTorch to 1 thread to avoid contention under 1 vCPU pod constraint
 torch.set_num_threads(1)
 
 logging.basicConfig(level=logging.INFO)
@@ -44,10 +37,8 @@ class InferenceRequest(BaseModel):
     uuid: str
     image: str  # base64-encoded image
 
-MAX_INFER_SIZE = 640  # cap input resolution to keep inference time stable (student addition)
+MAX_INFER_SIZE = 640
 
-# AI-generated (Claude): base decode logic. Modified: extracted as shared helper,
-# added aspect-ratio-preserving resize using scale factor instead of branching, added INTER_LINEAR.
 def _decode_image(image_b64: str) -> np.ndarray:
     image_bytes = base64.b64decode(image_b64)
     np_arr = np.frombuffer(image_bytes, dtype=np.uint8)
