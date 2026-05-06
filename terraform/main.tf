@@ -1,3 +1,7 @@
+# AI-generated (Claude, Anthropic): modular network/compute structure.
+# Modified: added worker_machine_type, disk size variables, NodePort firewall rule (30000-32767),
+# and SSH firewall rule (tcp:22) for Ansible access.
+
 module "network" {
   source = "./modules/network"
 

@@ -1,3 +1,8 @@
+# AI-generated (Claude, Anthropic): multi-stage build structure, venv isolation, CPU-only
+# PyTorch install, and non-root user setup.
+# Modified: added libxcb1 (required by OpenCV at runtime); added PYTHONUNBUFFERED and
+# PYTHONDONTWRITEBYTECODE env vars; added --log-level warning to CMD.
+
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Install all Python dependencies into a virtual environment.
 # Keeping this in a separate stage prevents build tools from leaking
