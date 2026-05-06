@@ -104,10 +104,11 @@ The results confirm that the CloudEco inference service scales near-linearly wit
 | Criterion | Value |
 | :--- | :--- |
 | Max stable concurrent users |	20 users（last point with no failure）|
-| Avg response time at threshold | 11534.88ms
-| Breaking point | 30 users（failure start appearing）
-| Max throughput | ~0.68 RPS
+| Avg response time at threshold | 11534.88ms |
+| Breaking point | 30 users（failure start appearing）|
+| Max throughput | ~0.68 RPS |
 
+```
 Type     Name                                                                 # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
 POST     /api/annotate                                                            91   10(10.99%) |  12286    1159   30357   6700 |    0.23        0.03
@@ -124,11 +125,12 @@ POST     /api/predict                                                           
          Aggregated                                                                  6400  14000  22000  26000  30000  30000  30000  30000  31000  31000  31000    267
 
 Error report
-# occurrences      Error                                                                                               
+# occurrences      Error
 ------------------|------------------------------------------------------------------------------------------------------------------------------------
-10                 POST /api/annotate: HTTP 0:                                                                         
-18                 POST /api/predict: HTTP 0:                                                                          
+10                 POST /api/annotate: HTTP 0:
+18                 POST /api/predict: HTTP 0:
 ------------------|------------------------------------------------------------------------------------------------------------------------------------
+```
 
 #### 2 pods
 | Criterion | Value |
@@ -138,6 +140,7 @@ Error report
 | Breaking point | ~60 users（failure start appearing）|
 | Max throughput | ~1.36 RPS |
 
+```
 Type     Name                                                                 # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
 POST     /api/annotate                                                            89   13(14.61%) |  13986    1294   30272  13000 |    0.42        0.06
@@ -152,6 +155,7 @@ POST     /api/annotate                                                          
 POST     /api/predict                                                              14000  20000  24000  25000  30000  30000  30000  30000  30000  30000  30000    202
 --------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
          Aggregated                                                              13000  20000  23000  24000  30000  30000  30000  30000  30000  30000  30000    291
+```
 
 #### 4 pods
 | Criterion | Value |
@@ -161,6 +165,7 @@ POST     /api/predict                                                           
 | Breaking point | ~90 users（failure start appearing）|
 | Max throughput | ~2.61 RPS |
 
+```
 Type     Name                                                                 # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
 POST     /api/annotate                                                           258   10( 3.88%) |  21416    1388   30689  23000 |    0.88        0.03
@@ -175,6 +180,7 @@ POST     /api/annotate                                                          
 POST     /api/predict                                                              23000  25000  26000  27000  29000  30000  30000  30000  30000  30000  30000    504
 --------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
          Aggregated                                                              23000  25000  26000  27000  29000  30000  30000  30000  31000  31000  31000    762
+```
 
 #### 8 pods
 | Criterion | Value |
@@ -184,6 +190,7 @@ POST     /api/predict                                                           
 | Breaking point | ~130 users（failure start appearing）|
 | Max throughput | ~4.50 RPS |
 
+```
 Type     Name                                                                 # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
 POST     /api/annotate                                                           682   15( 2.20%) |  16053     145   40654  15000 |    1.43        0.03
@@ -198,5 +205,6 @@ POST     /api/annotate                                                          
 POST     /api/predict                                                              14000  19000  22000  24000  26000  28000  30000  30000  35000  36000  36000   1469
 --------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
          Aggregated                                                              14000  20000  22000  24000  26000  29000  30000  31000  36000  41000  41000   2151
+```
 
 "ONNX Runtime was evaluated but exhibited higher and less stable latency on the e2 VM (avg 1.85s, spikes to 4s) compared to native PyTorch inference (avg 2.21s, stable). This is attributed to ONNX Runtime's internal thread pool contending with the ThreadPoolExecutor under a single vCPU constraint. PyTorch was retained as the inference backend."
