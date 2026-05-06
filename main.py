@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 MODEL_PATH = "wildfire-detection/fire-models/fire_m.pt"
 model: YOLO = None
-executor = ThreadPoolExecutor(max_workers=2)
+executor = ThreadPoolExecutor(max_workers=4)
 
 
 @asynccontextmanager

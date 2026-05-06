@@ -9,7 +9,7 @@ python3 -m uvicorn main:app --host 0.0.0.0 --port 8001
 ### Docker build container
 ```
 docker build --platform linux/amd64 -t cloudeco:latest .
-docker buildx build --platform linux/amd64 -t alan66603/cloudeco:latest --push .
+<!-- docker buildx build --platform linux/amd64 -t alan66603/cloudeco:latest --push . -->
 docker run -p 8001:8000 cloudeco:latest
 ```
 
@@ -37,7 +37,7 @@ kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 # get NodePort
 kubectl get svc -n cloudeco
-python3 -m locust -f locust/locustfile.py --host=http://<Master external IP>:<NodePort>
+python3 -m locust -f locustfile.py --host=<Master external IP>:<NodePort>
 ```
 
 ### Image Data Transformation Pipeline
@@ -65,141 +65,138 @@ When you process an image from a web request to a computer vision model, the dat
 
 | Pods | Max Throughput (RPS) | Max Stable Users | Avg Latency at Threshold | Breaking Point | Scaling Efficiency |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| 1 | 1.10 | ~34 | 8,703 ms | ~35 users | baseline |
-| 2 | 2.20 | ~79 | 13,195 ms | ~80 users | 2.00× |
-| 4 | 4.10 | ~128 | 10,936 ms | ~130 users | 3.73× |
-| 8 | 6.90 | ~164 | 9,774 ms | ~166 users | 6.27× |
+| 1 | 0.68 | 20 | 11,535 ms | ~30 users | baseline |
+| 2 | 1.36 | 40 | 15,309 ms | ~60 users | 2.00× |
+| 4 | 2.61 | 70 | 21,242 ms | ~90 users | 3.84× |
+| 8 | 4.50 | 100 | 15,770 ms | ~130 users | 6.62× |
 
 #### Analysis
 
 **Methodology**
 
-Load testing was conducted using Locust against the CloudEco wildfire detection API deployed on a 3-node Kubernetes cluster (1 master, 2 workers; n2-custom-4-8192 on GCP). Each worker node provides 4 vCPUs and 8 GB RAM. Pods were constrained to 1.0 vCPU and 2 Gi memory each. The Locust workload mixed `/api/predict` (weight 2) and `/api/annotate` (weight 1) tasks, each carrying a base64-encoded test image, with inter-request wait times of 0.1–0.5 s per user. A 30-second client-side timeout was applied so that requests queued beyond the practical usability threshold are recorded as failures. For each pod count (1, 2, 4, 8), concurrent users were ramped from 1 until the breaking point — defined as the onset of HTTP failures or exponential latency growth — was reached.
+Load testing was conducted using Locust against the CloudEco wildfire detection API deployed on a 3-node Kubernetes cluster (1 master, 2 workers; e2-custom-4-8192 on GCP). Each worker node provides 4 vCPUs and 8 GB RAM. Pods were constrained to 1.0 vCPU and 2 Gi memory each. The Locust workload mixed `/api/predict` (weight 2) and `/api/annotate` (weight 1) tasks, each carrying a base64-encoded test image, with inter-request wait times of 0.5–1.5 s per user. A 30-second client-side timeout was applied so that requests queued beyond the practical usability threshold are recorded as failures. For each pod count (1, 2, 4, 8), concurrent users were ramped from 5 until the breaking point — defined as the onset of HTTP failures or exponential latency growth — was reached.
 
 **Results and Little's Law Verification**
 
 Little's Law states L = λW, where L is the mean number of requests concurrently in the system, λ is the throughput (arrival rate), and W is the mean sojourn time (response time).
 
-At the saturation point for 1 pod (λ = 1.00 req/s, W = 8.703 s):
+At the saturation point for 1 pod (λ = 0.68 req/s, W = 11.535 s):
 
-> L = 1.00 × 8.703 ≈ **8.7 concurrent requests in the system**
+> L = 0.68 × 11.535 ≈ **7.8 concurrent requests in the system**
 
-This confirms the server is nearly fully utilised: with 34 concurrent users driving 1.00 req/s, the system already has ~8.7 requests queued or in service at any moment.
+This confirms the server is nearly fully utilised: with only 20 concurrent users driving 0.68 req/s, the system already has ~7.8 requests queued or in service at any moment.
 
 **Queuing Theory Analysis**
 
-Each pod acts as an independent server. At low load (1–4 users), single-request latency is ~1.1 s, so the effective per-pod service rate is μ ≈ 1/1.1 ≈ 0.91 req/s. With `ThreadPoolExecutor(max_workers=2)` and `torch.set_num_threads(1)`, the two workers can overlap I/O-bound phases (request parsing, JSON serialisation), raising the observed saturation throughput to μ ≈ 1.10 req/s per pod before the single vCPU becomes the bottleneck.
+Each pod acts as an independent server with a mean service time of approximately 1/μ ≈ 6.4 s (≈ 0.156 req/s per pod). Server utilisation at saturation is ρ = λ / (c × μ), where c is the number of pods. For 1 pod: ρ = 0.68 / (1 × 0.156) ≈ **0.98** (near-full utilisation), confirming the system is CPU-bound.
 
-Server utilisation at saturation is ρ = λ / (c × μ), where c is the number of pods. For 1 pod: ρ = 1.10 / (1 × 1.10) ≈ **1.0** (near-full utilisation), confirming the system is CPU-bound.
-
-As pod count doubles, the aggregate service rate c × μ doubles, allowing twice the arrival rate before ρ approaches 1 again. This explains the near-linear throughput scaling (×2.00, ×3.73, ×6.27 for 2, 4, 8 pods respectively). The slight sub-linearity at 8 pods (6.27× instead of 8×) reflects scheduling overhead and CPU contention within shared worker nodes, where multiple pods on the same physical machine compete for CPU time slices.
+As pod count doubles, the aggregate service rate c × μ doubles, allowing twice the arrival rate before ρ approaches 1 again. This explains the near-linear throughput scaling (×2.00, ×3.84, ×6.62 for 2, 4, 8 pods respectively). The slight sub-linearity at 8 pods (6.62× instead of 8×) reflects scheduling overhead and CPU contention within shared worker nodes, where multiple pods on the same physical machine compete for CPU time slices.
 
 **Saturation Point and Breaking Point**
 
-The saturation point — where RPS plateaus despite additional users — occurs at approximately 4–5 concurrent users per pod. Beyond this, the system enters an overloaded regime: the request queue grows unboundedly, response time increases linearly with load, and eventually the 30-second client timeout triggers failures. The breaking point scales roughly linearly with pod count (~35 → ~80 → ~130 → ~166 users), demonstrating that horizontal pod scaling provides predictable, proportional capacity expansion.
+The saturation point — where RPS plateaus despite additional users — occurs at approximately 5 concurrent users per pod. Beyond this, the system enters an overloaded regime: the request queue grows unboundedly, response time increases linearly with load, and eventually the 30-second client timeout triggers failures. The breaking point scales roughly linearly with pod count (30 → 60 → 90 → 130 users), demonstrating that horizontal pod scaling provides predictable, proportional capacity expansion.
 
 **Conclusion**
 
-The results confirm that the CloudEco inference service scales near-linearly with pod count under CPU-bound YOLOv8m inference. A single pod sustains 1.10 RPS; eight pods sustain 6.90 RPS (6.27× gain), achieving 78% parallel efficiency. Little's Law and M/M/c queuing theory accurately predict observed throughput and latency behaviour, validating the architectural decision to use stateless, horizontally-scalable pods for ML inference workloads.
+The results confirm that the CloudEco inference service scales near-linearly with pod count under CPU-bound YOLOv8m inference. A single pod sustains 0.68 RPS; eight pods sustain 4.50 RPS (6.62× gain), achieving 83% parallel efficiency. Little's Law and M/M/c queuing theory accurately predict observed throughput and latency behaviour, validating the architectural decision to use stateless, horizontally-scalable pods for ML inference workloads.
 
 #### 1 pod
 | Criterion | Value |
 | :--- | :--- |
-| Max stable concurrent users | ~34 users (last point with no failure) |
-| Avg response time at threshold | 8,703 ms |
-| Breaking point | ~35 users (failures start appearing) |
-| Max throughput | ~1.10 RPS |
+| Max stable concurrent users |	20 users（last point with no failure）|
+| Avg response time at threshold | 11534.88ms
+| Breaking point | 30 users（failure start appearing）
+| Max throughput | ~0.68 RPS
 
-```
 Type     Name                                                                 # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
-POST     /api/annotate                                                            12    0( 0.00%) |   6149   1114   14084  14000 |    0.20        0.00
-POST     /api/predict                                                             23    0( 0.00%) |  10036   1143   16892  15000 |    0.80        0.00
+POST     /api/annotate                                                            91   10(10.99%) |  12286    1159   30357   6700 |    0.23        0.03
+POST     /api/predict                                                            176   18(10.23%) |  11146     958   30622   6100 |    0.45        0.05
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
-         Aggregated                                                               35    0( 0.00%) |   8703   1114   16892  15000 |    1.00        0.00
+         Aggregated                                                              267   28(10.49%) |  11534     958   30622   6400 |    0.68        0.07
 
 Response time percentiles (approximated)
-Type     Name                                                                         50%    66%    75%    80%    90%    95%    98%    99% # reqs
---------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------
-POST     /api/annotate                                                              14000  14000  14000  14000  14000  14000  14000  14000     12
-POST     /api/predict                                                              15000  17000  17000  17000  17000  17000  17000  17000     23
---------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------
-         Aggregated                                                                15000  17000  17000  17000  17000  17000  17000  17000     35
-```
+Type     Name                                                                         50%    66%    75%    80%    90%    95%    98%    99%  99.9% 99.99%   100% # reqs
+--------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
+POST     /api/annotate                                                               6700  15000  26000  27000  30000  30000  30000  30000  30000  30000  30000     91
+POST     /api/predict                                                                6100  13000  18000  25000  30000  30000  30000  31000  31000  31000  31000    176
+--------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
+         Aggregated                                                                  6400  14000  22000  26000  30000  30000  30000  30000  31000  31000  31000    267
+
+Error report
+# occurrences      Error                                                                                               
+------------------|------------------------------------------------------------------------------------------------------------------------------------
+10                 POST /api/annotate: HTTP 0:                                                                         
+18                 POST /api/predict: HTTP 0:                                                                          
+------------------|------------------------------------------------------------------------------------------------------------------------------------
 
 #### 2 pods
 | Criterion | Value |
 | :--- | :--- |
-| Max stable concurrent users | ~79 users (last point with no failure) |
-| Avg response time at threshold | 13,195 ms |
-| Breaking point | ~80 users (failures start appearing) |
-| Max throughput | ~2.20 RPS |
+| Max stable concurrent users | ~40 users（last point with no failure）|
+| Avg response time at threshold | ~13,000ms |
+| Breaking point | ~60 users（failure start appearing）|
+| Max throughput | ~1.36 RPS |
 
-```
 Type     Name                                                                 # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
-POST     /api/annotate                                                            56    0( 0.00%) |  13315   1037   26283  23000 |    0.70        0.00
-POST     /api/predict                                                            105    0( 0.00%) |  13130   1337   25839  25000 |    1.30        0.00
+POST     /api/annotate                                                            89   13(14.61%) |  13986    1294   30272  13000 |    0.42        0.06
+POST     /api/predict                                                            202   27(13.37%) |  15892    1188   30252  14000 |    0.94        0.13
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
-         Aggregated                                                              161    0( 0.00%) |  13195   1037   26283  24000 |    2.00        0.00
+         Aggregated                                                              291   40(13.75%) |  15309    1188   30272  13000 |    1.36        0.19
 
 Response time percentiles (approximated)
-Type     Name                                                                         50%    66%    75%    80%    90%    95%    98%    99% # reqs
---------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------
-POST     /api/annotate                                                              23000  25000  26000  26000  26000  26000  26000  26000     56
-POST     /api/predict                                                              25000  26000  26000  26000  26000  26000  26000  26000    105
---------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------
-         Aggregated                                                                24000  26000  26000  26000  26000  26000  26000  26000    161
-```
+Type     Name                                                                         50%    66%    75%    80%    90%    95%    98%    99%  99.9% 99.99%   100% # reqs
+--------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
+POST     /api/annotate                                                              13000  17000  21000  24000  30000  30000  30000  30000  30000  30000  30000     89
+POST     /api/predict                                                              14000  20000  24000  25000  30000  30000  30000  30000  30000  30000  30000    202
+--------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
+         Aggregated                                                              13000  20000  23000  24000  30000  30000  30000  30000  30000  30000  30000    291
 
 #### 4 pods
 | Criterion | Value |
 | :--- | :--- |
-| Max stable concurrent users | ~128 users (last point with no failure) |
-| Avg response time at threshold | 10,936 ms |
-| Breaking point | ~130 users (failures start appearing) |
-| Max throughput | ~4.10 RPS |
+| Max stable concurrent users | ~70 users（last point with no failure）|
+| Avg response time at threshold | ~21,000ms |
+| Breaking point | ~90 users（failure start appearing）|
+| Max throughput | ~2.61 RPS |
 
-```
 Type     Name                                                                 # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
-POST     /api/annotate                                                            82    0( 0.00%) |   9894   1086   24044  17000 |    1.10        0.00
-POST     /api/predict                                                            164    0( 0.00%) |  11457    993   25748  21000 |    2.80        0.00
+POST     /api/annotate                                                           258   10( 3.88%) |  21416    1388   30689  23000 |    0.88        0.03
+POST     /api/predict                                                            504   26( 5.16%) |  21154    1164   30139  23000 |    1.73        0.09
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
-         Aggregated                                                              246    0( 0.00%) |  10936    993   25748  21000 |    3.90        0.00
+         Aggregated                                                              762   36( 4.72%) |  21242    1164   30689  23000 |    2.61        0.12
 
 Response time percentiles (approximated)
-Type     Name                                                                         50%    66%    75%    80%    90%    95%    98%    99% # reqs
---------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------
-POST     /api/annotate                                                              17000  22000  23000  23000  24000  24000  24000  24000     82
-POST     /api/predict                                                              21000  24000  25000  25000  26000  26000  26000  26000    164
---------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------
-         Aggregated                                                                21000  24000  25000  25000  26000  26000  26000  26000    246
-```
+Type     Name                                                                         50%    66%    75%    80%    90%    95%    98%    99%  99.9% 99.99%   100% # reqs
+--------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
+POST     /api/annotate                                                              24000  25000  27000  28000  29000  30000  30000  30000  31000  31000  31000    258
+POST     /api/predict                                                              23000  25000  26000  27000  29000  30000  30000  30000  30000  30000  30000    504
+--------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
+         Aggregated                                                              23000  25000  26000  27000  29000  30000  30000  30000  31000  31000  31000    762
 
 #### 8 pods
 | Criterion | Value |
 | :--- | :--- |
-| Max stable concurrent users | ~164 users (last point with no failure) |
-| Avg response time at threshold | 9,774 ms |
-| Breaking point | ~166 users (failures start appearing) |
-| Max throughput | ~6.90 RPS |
+| Max stable concurrent users | ~100 users（last point with no failure）|
+| Avg response time at threshold | ~15,770ms |
+| Breaking point | ~130 users（failure start appearing）|
+| Max throughput | ~4.50 RPS |
 
-```
 Type     Name                                                                 # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
-POST     /api/annotate                                                           187    0( 0.00%) |   9802   1214   29980  16000 |    3.20        0.00
-POST     /api/predict                                                            320    0( 0.00%) |   9758   1050   30123  19000 |    3.50        0.00
+POST     /api/annotate                                                           682   15( 2.20%) |  16053     145   40654  15000 |    1.43        0.03
+POST     /api/predict                                                           1469   54( 3.68%) |  15639     627   36078  14000 |    3.07        0.11
 --------|-------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
-         Aggregated                                                              507    0( 0.00%) |   9774   1050   30123  18000 |    6.70        0.00
+         Aggregated                                                             2151   69( 3.21%) |  15770     145   40654  14000 |    4.50        0.14
 
 Response time percentiles (approximated)
-Type     Name                                                                         50%    66%    75%    80%    90%    95%    98%    99% # reqs
---------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------
-POST     /api/annotate                                                              16000  20000  21000  22000  23000  23000  24000  24000    187
-POST     /api/predict                                                              19000  22000  24000  25000  27000  30000  30000  30000    320
---------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------
-         Aggregated                                                                18000  22000  23000  24000  27000  30000  30000  30000    507
-```
+Type     Name                                                                         50%    66%    75%    80%    90%    95%    98%    99%  99.9% 99.99%   100% # reqs
+--------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
+POST     /api/annotate                                                              15000  20000  22000  24000  27000  30000  31000  33000  41000  41000  41000    682
+POST     /api/predict                                                              14000  19000  22000  24000  26000  28000  30000  30000  35000  36000  36000   1469
+--------|-----------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
+         Aggregated                                                              14000  20000  22000  24000  26000  29000  30000  31000  36000  41000  41000   2151
 
-"ONNX Runtime was evaluated but exhibited higher and less stable latency on the e2 VM (avg 1.85s, spikes to 4s) compared to native PyTorch inference (avg 1.1s, stable at low load). This is attributed to ONNX Runtime's internal thread pool contending with the ThreadPoolExecutor under a single vCPU constraint. PyTorch was retained as the inference backend."
+"ONNX Runtime was evaluated but exhibited higher and less stable latency on the e2 VM (avg 1.85s, spikes to 4s) compared to native PyTorch inference (avg 2.21s, stable). This is attributed to ONNX Runtime's internal thread pool contending with the ThreadPoolExecutor under a single vCPU constraint. PyTorch was retained as the inference backend."

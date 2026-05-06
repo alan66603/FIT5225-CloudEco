@@ -35,9 +35,9 @@ variable "disk_size_master_gb" {
 }
 
 variable "disk_size_worker_gb" {
-  description = "Worker node boot disk size in GB"
+  description = "Boot disk size in GB"
   type        = number
-  default     = 30
+  default     = 15
 }
 
 variable "network_name" {

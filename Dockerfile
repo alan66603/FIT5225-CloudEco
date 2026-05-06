@@ -27,9 +27,6 @@ RUN pip install --no-cache-dir \
 # This discards all build-time tooling and keeps the final image small.
 FROM python:3.12-slim AS runtime
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
-
 # Install system libraries required by opencv, then clean up apt cache
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libxcb1 \
@@ -56,4 +53,4 @@ USER appuser
 # docker run -p xxxx:8000 myimage
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "warning"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

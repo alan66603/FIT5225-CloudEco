@@ -10,7 +10,7 @@ with open(IMAGE_PATH, "rb") as f:
 
 
 class WildfireUser(HttpUser):
-    wait_time = between(0.1, 0.5)  # seconds between tasks per user
+    wait_time = between(0.5, 1.5)  # seconds between tasks per user
 
     def on_start(self):
         self.client.headers.update({"Connection": "close"})

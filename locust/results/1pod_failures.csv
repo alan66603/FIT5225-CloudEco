@@ -1,3 +1,3 @@
 Method,Name,Error,Occurrences
-POST,/api/annotate,CatchResponseError('HTTP 0: '),6
-POST,/api/predict,CatchResponseError('HTTP 0: '),12
+POST,/api/annotate,CatchResponseError('HTTP 0: '),27
+POST,/api/predict,CatchResponseError('HTTP 0: '),43
